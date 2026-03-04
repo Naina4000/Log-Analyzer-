@@ -1,1 +1,7 @@
-.
+
+{
+  "brute_force_threshold": 5,
+  "time_window_seconds": 60,
+  "username_enumeration_threshold": 3
+}
+
