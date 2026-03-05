@@ -2,6 +2,7 @@
 {
   "brute_force_threshold": 5,
   "time_window_seconds": 60,
-  "username_enumeration_threshold": 3
+  "username_enumeration_threshold": 3,
+  "business_hours_start": 9,
+  "business_hours_end": 18
 }
-
