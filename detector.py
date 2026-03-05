@@ -2,19 +2,13 @@ from collections import defaultdict
 
 
 def detect_bruteforce(parsed_logs, threshold, time_window):
-    """
-    Detect brute force attempts within time window.
-    """
-
     failed_attempts = defaultdict(list)
     alerts = []
 
-    # Collect failed login timestamps per IP
     for log in parsed_logs:
         if log["status"] == "FAILED":
             failed_attempts[log["ip"]].append(log["timestamp"])
 
-    # Check time-window logic
     for ip, timestamps in failed_attempts.items():
         timestamps.sort()
 
@@ -40,15 +34,9 @@ def detect_bruteforce(parsed_logs, threshold, time_window):
 
 
 def detect_username_enumeration(parsed_logs, threshold, time_window):
-    """
-    Detect multiple different usernames attempted from same IP
-    within time window.
-    """
-
     ip_user_map = defaultdict(list)
     alerts = []
 
-    # Collect usernames per IP
     for log in parsed_logs:
         if log["status"] == "FAILED":
             ip_user_map[log["ip"]].append(
@@ -84,3 +72,21 @@ def detect_username_enumeration(parsed_logs, threshold, time_window):
 
     return alerts
 
+
+def detect_unusual_login_time(parsed_logs, business_start, business_end):
+    alerts = []
+
+    for log in parsed_logs:
+        if log["status"] == "SUCCESS":
+            login_hour = log["timestamp"].hour
+
+            if login_hour < business_start or login_hour >= business_end:
+                alerts.append({
+                    "type": "Unusual Login Time",
+                    "ip": log["ip"],
+                    "username": log["username"],
+                    "severity": "LOW",
+                    "login_time": log["timestamp"]
+                })
+
+    return alerts
