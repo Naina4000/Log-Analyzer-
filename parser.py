@@ -1,12 +1,8 @@
 import re
 from datetime import datetime
 
-def parse_ssh_log(line):
-    """
-    Parses a single SSH log line.
-    Returns structured dictionary or None.
-    """
 
+def parse_ssh_log(line):
     year = datetime.now().year
 
     # Failed login pattern
@@ -50,4 +46,3 @@ def parse_ssh_log(line):
         }
 
     return None
-
