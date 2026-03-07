@@ -4,5 +4,12 @@
   "time_window_seconds": 60,
   "username_enumeration_threshold": 3,
   "business_hours_start": 9,
-  "business_hours_end": 18
+  "business_hours_end": 18,
+
+  "scores": {
+    "Brute Force": 80,
+    "Username Enumeration": 50,
+    "Unusual Login Time": 30,
+    "Blacklisted IP Activity": 100
+  }
 }
