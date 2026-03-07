@@ -90,3 +90,49 @@ def detect_unusual_login_time(parsed_logs, business_start, business_end):
                 })
 
     return alerts
+
+def detect_blacklisted_ip(parsed_logs, blacklist_ips):
+    alerts = []
+
+    for log in parsed_logs:
+        if log["ip"] in blacklist_ips:
+            alerts.append({
+                "type": "Blacklisted IP Activity",
+                "ip": log["ip"],
+                "severity": "CRITICAL",
+                "timestamp": log["timestamp"]
+            })
+
+    return alerts
+
+
+def correlate_incidents(alerts, score_config):
+    from collections import defaultdict
+
+    ip_scores = defaultdict(int)
+    incident_reports = []
+
+    # Calculate score per IP
+    for alert in alerts:
+        alert_type = alert["type"]
+        ip = alert["ip"]
+
+        if alert_type in score_config:
+            ip_scores[ip] += score_config[alert_type]
+
+    # Generate incident level
+    for ip, total_score in ip_scores.items():
+        if total_score >= 100:
+            level = "CRITICAL"
+        elif total_score >= 70:
+            level = "HIGH"
+        else:
+            level = "MEDIUM"
+
+        incident_reports.append({
+            "ip": ip,
+            "total_score": total_score,
+            "incident_level": level
+        })
+
+    return incident_reports
