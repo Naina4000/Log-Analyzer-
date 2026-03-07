@@ -46,3 +46,4 @@ def parse_ssh_log(line):
         }
 
     return None
+
