@@ -1,138 +1,64 @@
-from collections import defaultdict
+import json
+from datetime import datetime
 
 
-def detect_bruteforce(parsed_logs, threshold, time_window):
-    failed_attempts = defaultdict(list)
-    alerts = []
+def print_alerts(alerts, config, incidents):
+    print("\n========== LOG ANALYZER SUMMARY ==========")
+    print("Detection Engines Active:")
+    print(f"- Time Window Brute Force (Threshold: {config['brute_force_threshold']} in {config['time_window_seconds']}s)")
+    print(f"- Username Enumeration (Threshold: {config['username_enumeration_threshold']})")
+    print(f"- Business Hours Monitoring ({config['business_hours_start']}:00 - {config['business_hours_end']}:00)")
+    print("- Blacklist Monitoring Enabled")
+    print("- Threat Scoring & Correlation Enabled")
+    print("- JSON Report Export Enabled")
+    print("==========================================\n")
 
-    for log in parsed_logs:
-        if log["status"] == "FAILED":
-            failed_attempts[log["ip"]].append(log["timestamp"])
+    if not alerts:
+        print("No threats detected.\n")
+    else:
+        print("🚨 ALERTS DETECTED 🚨\n")
 
-    for ip, timestamps in failed_attempts.items():
-        timestamps.sort()
+        for alert in alerts:
+            print(f"[{alert['severity']}] {alert['type']} detected!")
+            print(f"IP: {alert['ip']}")
 
-        for i in range(len(timestamps) - threshold + 1):
-            start_time = timestamps[i]
-            end_time = timestamps[i + threshold - 1]
+            if "start_time" in alert:
+                print(f"Start Time: {alert['start_time']}")
 
-            if (end_time - start_time).total_seconds() <= time_window:
-                alerts.append({
-                    "type": "Brute Force",
-                    "ip": ip,
-                    "attempts": threshold,
-                    "severity": "HIGH",
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "duration_seconds": int(
-                        (end_time - start_time).total_seconds()
-                    )
-                })
-                break
+            if "end_time" in alert:
+                print(f"End Time: {alert['end_time']}")
 
-    return alerts
+            if "duration_seconds" in alert:
+                print(f"Duration: {alert['duration_seconds']} seconds")
 
+            print()
 
-def detect_username_enumeration(parsed_logs, threshold, time_window):
-    ip_user_map = defaultdict(list)
-    alerts = []
+    print("========== INCIDENT CORRELATION ==========\n")
 
-    for log in parsed_logs:
-        if log["status"] == "FAILED":
-            ip_user_map[log["ip"]].append(
-                (log["timestamp"], log["username"])
-            )
+    for incident in incidents:
+        print(f"IP: {incident['ip']}")
+        print(f"Total Threat Score: {incident['total_score']}")
+        print(f"Incident Level: {incident['incident_level']}")
+        print()
 
-    for ip, entries in ip_user_map.items():
-        entries.sort()
-
-        for i in range(len(entries)):
-            start_time = entries[i][0]
-            unique_users = set()
-
-            for j in range(i, len(entries)):
-                if (entries[j][0] - start_time).total_seconds() <= time_window:
-                    unique_users.add(entries[j][1])
-
-                    if len(unique_users) >= threshold:
-                        alerts.append({
-                            "type": "Username Enumeration",
-                            "ip": ip,
-                            "attempts": len(unique_users),
-                            "severity": "MEDIUM",
-                            "start_time": start_time,
-                            "end_time": entries[j][0],
-                            "duration_seconds": int(
-                                (entries[j][0] - start_time).total_seconds()
-                            )
-                        })
-                        break
-                else:
-                    break
-
-    return alerts
+    generate_json_report(alerts, incidents)
 
 
-def detect_unusual_login_time(parsed_logs, business_start, business_end):
-    alerts = []
+def generate_json_report(alerts, incidents):
+    def serialize(obj):
+        if hasattr(obj, "isoformat"):
+            return obj.isoformat()
+        return obj
 
-    for log in parsed_logs:
-        if log["status"] == "SUCCESS":
-            login_hour = log["timestamp"].hour
+    report_data = {
+        "analysis_timestamp": datetime.now().isoformat(),
+        "total_alerts": len(alerts),
+        "total_incidents": len(incidents),
+        "alerts": alerts,
+        "incidents": incidents
+    }
 
-            if login_hour < business_start or login_hour >= business_end:
-                alerts.append({
-                    "type": "Unusual Login Time",
-                    "ip": log["ip"],
-                    "username": log["username"],
-                    "severity": "LOW",
-                    "login_time": log["timestamp"]
-                })
+    with open("report.json", "w") as f:
+        json.dump(report_data, f, default=serialize, indent=4)
 
-    return alerts
-
-def detect_blacklisted_ip(parsed_logs, blacklist_ips):
-    alerts = []
-
-    for log in parsed_logs:
-        if log["ip"] in blacklist_ips:
-            alerts.append({
-                "type": "Blacklisted IP Activity",
-                "ip": log["ip"],
-                "severity": "CRITICAL",
-                "timestamp": log["timestamp"]
-            })
-
-    return alerts
-
-
-def correlate_incidents(alerts, score_config):
-    from collections import defaultdict
-
-    ip_scores = defaultdict(int)
-    incident_reports = []
-
-    # Calculate score per IP
-    for alert in alerts:
-        alert_type = alert["type"]
-        ip = alert["ip"]
-
-        if alert_type in score_config:
-            ip_scores[ip] += score_config[alert_type]
-
-    # Generate incident level
-    for ip, total_score in ip_scores.items():
-        if total_score >= 100:
-            level = "CRITICAL"
-        elif total_score >= 70:
-            level = "HIGH"
-        else:
-            level = "MEDIUM"
-
-        incident_reports.append({
-            "ip": ip,
-            "total_score": total_score,
-            "incident_level": level
-        })
-
-    return incident_reports
+    print("Report saved as report.json\n")
