@@ -176,22 +176,58 @@ python main.py --apache logs/apache.log
 # 📊 Example Output
 
 ```text
-🚨 ALERTS DETECTED
+🚨 ALERTS DETECTED 🚨
 
 [HIGH] Brute Force detected!
-IP: 192.168.1.43
-Country: India
+IP: 192.168.1.44
+Country: Unknown
+Region: Unknown
+ISP: Unknown
 MITRE Technique: T1110 (Brute Force)
+Start Time: 2026-03-02 14:22:10
+End Time: 2026-03-02 14:22:25
+Occurrences: 1
 
 [HIGH] SQL Injection Attempt detected!
 IP: 192.168.1.60
+Country: Unknown
+Region: Unknown
+ISP: Unknown
 MITRE Technique: T1190 (Exploit Public-Facing Application)
+Occurrences: 2
+
+[HIGH] XSS Attempt detected!
+IP: 192.168.1.70
+Country: Unknown
+Region: Unknown
+ISP: Unknown
+MITRE Technique: T1059 (Command and Scripting Interpreter)
+Occurrences: 1
+
+[CRITICAL] Blacklisted IP Activity detected!
+IP: 192.168.1.43
+Country: Unknown
+Region: Unknown
+ISP: Unknown
+MITRE Technique: T1071 (Application Layer Protocol)   
+Occurrences: 5
 
 ========== INCIDENT CORRELATION ==========
 
 IP: 192.168.1.43
 Total Threat Score: 180
 Incident Level: CRITICAL
+
+IP: 192.168.1.60
+Total Threat Score: 0
+Incident Level: MEDIUM
+
+IP: 192.168.1.70
+Total Threat Score: 0
+Incident Level: MEDIUM
+
+Report saved as report.json
+Report saved as report.csv
 ```
 
 ---
