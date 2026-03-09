@@ -1,74 +1,192 @@
-import json
-from datetime import datetime
-from log_analyzer.geoip import get_geoip
+
+from collections import defaultdict
 
 
-def print_alerts(alerts, config, incidents):
+# ---------------- SSH DETECTIONS ---------------- #
 
-    print("\n========== LOG ANALYZER SUMMARY ==========")
-    print("Detection Engines Active:")
-    print(f"- Time Window Brute Force (Threshold: {config['brute_force_threshold']} in {config['time_window_seconds']}s)")
-    print(f"- Username Enumeration (Threshold: {config['username_enumeration_threshold']})")
-    print(f"- Business Hours Monitoring ({config['business_hours_start']}:00 - {config['business_hours_end']}:00)")
-    print("- Blacklist Monitoring Enabled")
-    print("- Threat Scoring & Correlation Enabled")
-    print("- JSON Report Export Enabled")
-    print("- GeoIP Enrichment Enabled")
-    print("==========================================\n")
+def detect_bruteforce(parsed_logs, threshold, time_window):
+    failed_attempts = defaultdict(list)
+    alerts = []
 
-    if not alerts:
-        print("No threats detected.\n")
-    else:
-        print("🚨 ALERTS DETECTED 🚨\n")
+    for log in parsed_logs:
+        if log.get("log_type") == "SSH" and log["status"] == "FAILED":
+            failed_attempts[log["ip"]].append(log["timestamp"])
 
-        for alert in alerts:
-            print(f"[{alert['severity']}] {alert['type']} detected!")
-            print(f"IP: {alert['ip']}")
+    for ip, timestamps in failed_attempts.items():
+        timestamps.sort()
 
-            # 🌍 GeoIP enrichment
-            geo = get_geoip(alert["ip"])
-            print(f"Country: {geo['country']}")
-            print(f"Region: {geo['region']}")
-            print(f"ISP: {geo['isp']}")
+        for i in range(len(timestamps) - threshold + 1):
+            start_time = timestamps[i]
+            end_time = timestamps[i + threshold - 1]
 
-            if "start_time" in alert:
-                print(f"Start Time: {alert['start_time']}")
+            if (end_time - start_time).total_seconds() <= time_window:
+                alerts.append({
+                    "type": "Brute Force",
+                    "ip": ip,
+                    "severity": "HIGH",
+                    "start_time": start_time,
+                    "end_time": end_time
+                })
+                break
 
-            if "end_time" in alert:
-                print(f"End Time: {alert['end_time']}")
-
-            if "occurrences" in alert:
-                print(f"Occurrences: {alert['occurrences']}")
-
-            print()
-
-    print("========== INCIDENT CORRELATION ==========\n")
-
-    for incident in incidents:
-        print(f"IP: {incident['ip']}")
-        print(f"Total Threat Score: {incident['total_score']}")
-        print(f"Incident Level: {incident['incident_level']}")
-        print()
-
-    generate_json_report(alerts, incidents)
+    return alerts
 
 
-def generate_json_report(alerts, incidents):
+def detect_username_enumeration(parsed_logs, threshold, time_window):
+    ip_user_map = defaultdict(list)
+    alerts = []
 
-    def serialize(obj):
-        if hasattr(obj, "isoformat"):
-            return obj.isoformat()
-        return obj
+    for log in parsed_logs:
+        if log.get("log_type") == "SSH" and log["status"] == "FAILED":
+            ip_user_map[log["ip"]].append((log["timestamp"], log["username"]))
 
-    report = {
-        "analysis_time": datetime.now().isoformat(),
-        "total_alerts": len(alerts),
-        "total_incidents": len(incidents),
-        "alerts": alerts,
-        "incidents": incidents
-    }
+    for ip, entries in ip_user_map.items():
+        entries.sort()
 
-    with open("report.json", "w") as f:
-        json.dump(report, f, indent=4, default=serialize)
+        for i in range(len(entries)):
+            start_time = entries[i][0]
+            users = set()
 
-    print("Report saved as report.json\n")
+            for j in range(i, len(entries)):
+                if (entries[j][0] - start_time).total_seconds() <= time_window:
+                    users.add(entries[j][1])
+                    if len(users) >= threshold:
+                        alerts.append({
+                            "type": "Username Enumeration",
+                            "ip": ip,
+                            "severity": "MEDIUM"
+                        })
+                        break
+                else:
+                    break
+
+    return alerts
+
+
+def detect_unusual_login_time(parsed_logs, start, end):
+    alerts = []
+
+    for log in parsed_logs:
+        if log.get("log_type") == "SSH" and log["status"] == "SUCCESS":
+            if log["timestamp"].hour < start or log["timestamp"].hour >= end:
+                alerts.append({
+                    "type": "Unusual Login Time",
+                    "ip": log["ip"],
+                    "severity": "LOW"
+                })
+
+    return alerts
+
+
+# ---------------- APACHE DETECTIONS ---------------- #
+
+def detect_404_flood(parsed_logs, threshold=5):
+    ip_counter = defaultdict(int)
+    alerts = []
+
+    for log in parsed_logs:
+        if log.get("log_type") == "APACHE" and log["status_code"] == 404:
+            ip_counter[log["ip"]] += 1
+            if ip_counter[log["ip"]] == threshold:
+                alerts.append({
+                    "type": "404 Flood",
+                    "ip": log["ip"],
+                    "severity": "MEDIUM"
+                })
+
+    return alerts
+
+
+def detect_sql_injection(parsed_logs):
+    alerts = []
+    patterns = ["' OR", "UNION SELECT", "--", "'1'='1"]
+
+    for log in parsed_logs:
+        if log.get("log_type") == "APACHE":
+            for pattern in patterns:
+                if pattern.lower() in log["url"].lower():
+                    alerts.append({
+                        "type": "SQL Injection Attempt",
+                        "ip": log["ip"],
+                        "severity": "HIGH"
+                    })
+
+    return alerts
+
+
+def detect_xss(parsed_logs):
+    alerts = []
+
+    for log in parsed_logs:
+        if log.get("log_type") == "APACHE":
+            if "<script>" in log["url"].lower():
+                alerts.append({
+                    "type": "XSS Attempt",
+                    "ip": log["ip"],
+                    "severity": "HIGH"
+                })
+
+    return alerts
+
+
+# ---------------- BLACKLIST ---------------- #
+
+def detect_blacklisted_ip(parsed_logs, blacklist):
+    alerts = []
+
+    for log in parsed_logs:
+        if log["ip"] in blacklist:
+            alerts.append({
+                "type": "Blacklisted IP Activity",
+                "ip": log["ip"],
+                "severity": "CRITICAL"
+            })
+
+    return alerts
+
+
+# ---------------- CORRELATION ---------------- #
+
+def correlate_incidents(alerts, scores):
+    ip_scores = defaultdict(int)
+    incidents = []
+
+    for alert in alerts:
+        ip_scores[alert["ip"]] += scores.get(alert["type"], 0)
+
+    for ip, score in ip_scores.items():
+        if score >= 100:
+            level = "CRITICAL"
+        elif score >= 70:
+            level = "HIGH"
+        else:
+            level = "MEDIUM"
+
+        incidents.append({
+            "ip": ip,
+            "total_score": score,
+            "incident_level": level
+        })
+
+    return incidents
+
+def deduplicate_alerts(alerts):
+    from collections import defaultdict
+
+    grouped = defaultdict(lambda: {"count": 0, "alert": None})
+
+    for alert in alerts:
+        key = (alert["type"], alert["ip"])
+
+        grouped[key]["count"] += 1
+        grouped[key]["alert"] = alert
+
+    deduped = []
+
+    for key, value in grouped.items():
+        alert = value["alert"]
+        alert["occurrences"] = value["count"]
+        deduped.append(alert)
+
+    return deduped
+
