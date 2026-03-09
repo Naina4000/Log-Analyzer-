@@ -70,4 +70,3 @@ def parse_apache_log(line):
         }
 
     return None
-
