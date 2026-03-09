@@ -1,9 +1,12 @@
-
 import json
+import csv
 from datetime import datetime
+from log_analyzer.geoip import get_geoip
+from log_analyzer.mitre_mapper import get_mitre_mapping
 
 
 def print_alerts(alerts, config, incidents):
+
     print("\n========== LOG ANALYZER SUMMARY ==========")
     print("Detection Engines Active:")
     print(f"- Time Window Brute Force (Threshold: {config['brute_force_threshold']} in {config['time_window_seconds']}s)")
@@ -12,6 +15,9 @@ def print_alerts(alerts, config, incidents):
     print("- Blacklist Monitoring Enabled")
     print("- Threat Scoring & Correlation Enabled")
     print("- JSON Report Export Enabled")
+    print("- CSV Report Export Enabled")
+    print("- GeoIP Enrichment Enabled")
+    print("- MITRE ATT&CK Mapping Enabled")
     print("==========================================\n")
 
     if not alerts:
@@ -20,8 +26,19 @@ def print_alerts(alerts, config, incidents):
         print("🚨 ALERTS DETECTED 🚨\n")
 
         for alert in alerts:
+
             print(f"[{alert['severity']}] {alert['type']} detected!")
             print(f"IP: {alert['ip']}")
+
+            # GeoIP enrichment
+            geo = get_geoip(alert["ip"])
+            print(f"Country: {geo['country']}")
+            print(f"Region: {geo['region']}")
+            print(f"ISP: {geo['isp']}")
+
+            # MITRE mapping
+            mitre_id, mitre_name = get_mitre_mapping(alert["type"])
+            print(f"MITRE Technique: {mitre_id} ({mitre_name})")
 
             if "start_time" in alert:
                 print(f"Start Time: {alert['start_time']}")
@@ -29,8 +46,8 @@ def print_alerts(alerts, config, incidents):
             if "end_time" in alert:
                 print(f"End Time: {alert['end_time']}")
 
-            if "duration_seconds" in alert:
-                print(f"Duration: {alert['duration_seconds']} seconds")
+            if "occurrences" in alert:
+                print(f"Occurrences: {alert['occurrences']}")
 
             print()
 
@@ -43,16 +60,18 @@ def print_alerts(alerts, config, incidents):
         print()
 
     generate_json_report(alerts, incidents)
+    generate_csv_report(alerts)
 
 
 def generate_json_report(alerts, incidents):
+
     def serialize(obj):
         if hasattr(obj, "isoformat"):
             return obj.isoformat()
         return obj
 
-    report_data = {
-        "analysis_timestamp": datetime.now().isoformat(),
+    report = {
+        "analysis_time": datetime.now().isoformat(),
         "total_alerts": len(alerts),
         "total_incidents": len(incidents),
         "alerts": alerts,
@@ -60,6 +79,38 @@ def generate_json_report(alerts, incidents):
     }
 
     with open("report.json", "w") as f:
-        json.dump(report_data, f, default=serialize, indent=4)
+        json.dump(report, f, indent=4, default=serialize)
 
-    print("Report saved as report.json\n")
+    print("Report saved as report.json")
+
+
+def generate_csv_report(alerts):
+
+    with open("report.csv", "w", newline="") as file:
+
+        writer = csv.writer(file)
+
+        writer.writerow([
+            "Alert Type",
+            "IP",
+            "Severity",
+            "Country",
+            "MITRE Technique",
+            "Occurrences"
+        ])
+
+        for alert in alerts:
+
+            geo = get_geoip(alert["ip"])
+            mitre_id, _ = get_mitre_mapping(alert["type"])
+
+            writer.writerow([
+                alert["type"],
+                alert["ip"],
+                alert["severity"],
+                geo["country"],
+                mitre_id,
+                alert.get("occurrences", 1)
+            ])
+
+    print("Report saved as report.csv\n")
