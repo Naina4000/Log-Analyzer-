@@ -104,6 +104,5 @@ def main():
 
     print_alerts(alerts, config, incidents)
 
-
 if __name__ == "__main__":
     main()
