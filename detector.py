@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 
 
@@ -189,4 +188,3 @@ def deduplicate_alerts(alerts):
         deduped.append(alert)
 
     return deduped
-
