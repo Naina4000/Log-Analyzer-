@@ -1,6 +1,7 @@
 import json
 import csv
 from datetime import datetime
+
 from log_analyzer.geoip import get_geoip
 from log_analyzer.mitre_mapper import get_mitre_mapping
 
@@ -36,7 +37,7 @@ def print_alerts(alerts, config, incidents):
             print(f"Region: {geo['region']}")
             print(f"ISP: {geo['isp']}")
 
-            # MITRE mapping
+            # MITRE ATT&CK mapping
             mitre_id, mitre_name = get_mitre_mapping(alert["type"])
             print(f"MITRE Technique: {mitre_id} ({mitre_name})")
 
@@ -114,3 +115,4 @@ def generate_csv_report(alerts):
             ])
 
     print("Report saved as report.csv\n")
+
